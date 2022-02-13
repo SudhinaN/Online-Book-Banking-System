@@ -1,0 +1,115 @@
+/**
+ * 
+ */
+package com.viruksham.apps.tradefinapp.model;
+
+import java.io.FileNotFoundException;
+import java.io.UnsupportedEncodingException;
+import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.viruksham.apps.tradefinapp.dao.UserDao;
+import com.viruksham.apps.tradefinapp.data.UserData;
+import com.viruksham.apps.tradefinapp.exceptions.DataMismatchException;
+import com.viruksham.utils.security.SecurityUtil;
+
+/**
+ * @author bala
+ *
+ */
+public class UserModel {
+
+	private static final String GENERATED_KEY = "GENERATED_KEY";
+
+	private UserDao userDao = null;
+
+	public UserModel() throws ClassNotFoundException, SQLException, FileNotFoundException {
+		userDao = new UserDao();
+	}
+
+	/**
+	 * Retrieve the user list by invoking methods in the
+	 * UserDao class.
+	 *
+	 * @return Returns a list of maps containing user information
+	 */
+	public Object getUserList() {
+		
+		return userDao.getUserList();
+	}
+
+	public Object getUser(String userId) {
+		
+		return userDao.getUser(userId);
+	}
+
+	/**
+	 * Create a User
+	 *
+	 * @param userData The user's information
+	 * @return the userId
+	 * @throws Exception
+	 */
+	public Object createUser(Map<String, Object> data) throws Exception {
+		
+		Map<String, Integer> retVal = null;
+		UserData userData = new UserData(data);
+		userData.createUser();
+		
+		// Check if user exists
+		if (!userDao.checkUserExists(userData.getUsername())) {
+			@SuppressWarnings("unchecked")
+			Map<String, String> execResult =
+					(Map<String, String>) (
+							(List<Object>)userDao.createUser(userData)).get(0);
+
+			retVal = new HashMap<String, Integer>();
+
+			// Retrieve the uuid
+			retVal.put("uuid", Integer.valueOf(execResult.get(GENERATED_KEY)));
+		}
+		else {
+			throw new UnsupportedOperationException("Username already exists.");
+		}
+		return retVal;
+	}
+
+	/**
+	 * Validate the user based on the supplied credentials
+	 *
+	 * @param userName The username supplied from the client
+	 * @param hash The secret hash
+	 * @return Authentication result
+	 * @throws Exception
+	 */
+	@SuppressWarnings("unchecked")
+	public Object isValidUser(String userName, String hash) throws Exception {
+						
+
+		Map<String, Object> retVal = null;
+		List<Object> userData = (List<Object>) userDao.getUserAuthDetails(userName);
+		if (userData.size() == 1) {
+			retVal = (Map<String, Object>) userData.get(0);
+			try {
+				String generatedPassword =
+						SecurityUtil.generatePassword(hash, (byte[]) retVal.get(UserDao.COLUMN_SALT));
+				if (!generatedPassword.equals(retVal.get(UserDao.COLUMN_SECRETHASH))) {
+					throw new DataMismatchException("User password does not match");
+				}
+				retVal.remove(UserDao.COLUMN_SALT);
+				retVal.remove(UserDao.COLUMN_SECRETHASH);
+			} catch (UnsupportedEncodingException e) {
+				throw new Exception("Unable to authorize the user.");
+			} catch (NoSuchAlgorithmException e) {
+				throw new Exception("Unable to authorize the user.");
+			}
+		}
+		else {
+			throw new NullPointerException("User does not exist");
+		}
+		return retVal;
+	}
+}

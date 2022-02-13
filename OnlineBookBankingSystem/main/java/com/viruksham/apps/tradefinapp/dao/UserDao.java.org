@@ -1,0 +1,217 @@
+package com.viruksham.apps.tradefinapp.dao;
+
+import java.io.FileNotFoundException;
+import java.sql.Blob;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+import java.util.Map;
+
+import com.viruksham.apps.tradefinapp.data.UserData;
+
+/**
+ * @author bala
+ *
+ */
+public class UserDao extends BaseDao {
+
+	public static final String COLUMN_UUID = "uuid";
+	public static final String COLUMN_USERNAME = "username";
+	public static final String COLUMN_SECRETHASH = "secret_hash";
+	public static final String COLUMN_ROLE = "role";
+	public static final String COLUMN_NAME = "name";
+	public static final String COLUMN_SALT = "salt";
+	public static final String COLUMN_ISDISABLED = "is_disabled";
+
+	/**
+	 * Default Constructor.
+	 * Does nothing but invoke the super class default constructor
+	 *
+	 * @throws ClassNotFoundException
+	 * @throws SQLException
+	 * @throws FileNotFoundException
+	 */
+	public UserDao() throws ClassNotFoundException, SQLException, FileNotFoundException {
+		// invoke super constructor
+		super();
+	}
+
+	/**
+	 * Create User
+	 *
+	 * @param user User details
+	 * @return The generated userId
+	 */
+	@SuppressWarnings("unchecked")
+	public Object createUser(UserData user) {
+		List<Object> result = null;
+		System.out.println("dao");
+		String sql = "INSERT INTO users(username, secret, role, name, salt) VALUES(?, ?, ?, ?, ?)";
+		//String sql = "INSERT INTO users(username, secret, role, name, salt) VALUES(?, ?, ?, ?, ?)";
+		
+			try {
+			PreparedStatement stmt = writeConnection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+			stmt.setString(1, user.getUsername());
+			stmt.setString(2, user.getSecret());
+			stmt.setInt(3, user.getRole());
+			//stmt.setString(3, user.getRole());
+			stmt.setString(4, user.getName());
+			Blob blobValue = writeConnection.createBlob();
+			blobValue.setBytes(1, user.getSalt());
+			stmt.setBlob(5, blobValue);
+
+			result = (List<Object>) connectionManager.executeInsert(stmt);
+		} catch (SQLException e) {
+			logger.throwing(getClass().getName(), "getUserList()", e);
+		}
+		System.out.println(result);
+		return result;
+	}
+
+	/**
+	 * Check if the given username already exists
+	 *
+	 * @param userName Username
+	 * @return
+	 */
+	@SuppressWarnings("unchecked")
+	public boolean checkUserExists(String userName) {
+		boolean result = false;
+
+		String sql = "SELECT uuid FROM users WHERE username = ? AND is_disabled = 0";
+
+		try {
+			List<Object> sqlResult = null;
+			PreparedStatement stmt = readConnection.prepareStatement(sql);
+			stmt.setString(1, userName);
+
+			sqlResult = (List<Object>) connectionManager.executeQuery(stmt);
+			if(sqlResult.size() > 0) {
+				result = true;
+			}
+		} catch (SQLException e) {
+			logger.throwing(getClass().getName(), "getUserList()", e);
+		}
+
+		return result;
+	}
+
+	/**
+	 * Get user Authentication details
+	 *
+	 * @param userName The username
+	 * @return User details
+	 */
+	@SuppressWarnings("unchecked")
+	public Object getUserAuthDetails(String userName) {
+						System.out.println("user id dao ");
+
+		List<Object> result = null;
+
+		//String sql = "SELECT uuid, role, name, is_disabled, salt, secret_hash FROM users WHERE username = ?";
+		String sql = "SELECT * FROM users WHERE Name_User = ?";
+		
+
+		try {
+			PreparedStatement stmt = readConnection.prepareStatement(sql);
+			stmt.setString(1, userName);
+
+			result = (List<Object>) connectionManager.executeQuery(stmt);
+		} catch (SQLException e) {
+			logger.throwing(getClass().getName(), "getUserAuthDetails()", e);
+		}
+		
+		return result;			
+		
+
+	}
+
+	/**
+	 * Return the user list
+	 *
+	 * @return The list of user as an array of maps.
+	 */
+	@SuppressWarnings("unchecked")
+	public Object getUserList() {
+		System.out.println("userid dao");
+		List<Object> result = null;
+
+		//String sql = "SELECT uuid, username, role, name, is_disabled FROM users";
+		String sql = "select * from users";
+		try {
+			Statement stmt = readConnection.createStatement();
+
+			result = (List<Object>) connectionManager.executeSelect(stmt, sql);
+		} catch (SQLException e) {
+			logger.throwing(getClass().getName(), "getUserList()", e);
+		}
+		System.out.println(result);
+		return result;
+	}
+
+	/**
+	 * Return the user data
+	 *
+	 * @return The user data as a maps.
+	 */
+	@SuppressWarnings("unchecked")
+	public Object getUser(String uuid) {
+		List<Object> result = null;
+//System.out.println("userid dao");
+		//String sql = "SELECT uuid, username, role, name, is_disabled FROM users WHERE uuid = ?";
+		String sql = "SELECT *  FROM users WHERE uuid = ?";
+
+		try {
+			PreparedStatement stmt = readConnection.prepareStatement(sql);
+			stmt.setString(1, uuid);
+
+			result = (List<Object>) connectionManager.executeQuery(stmt);
+			logger.info(result.toString());
+		} catch (SQLException e) {
+			logger.throwing(getClass().getName(), "getUserList()", e);
+		}
+		//System.out.println(result);
+		return result;
+	}
+
+	/**
+	 * Validate the given user credentials
+	 *
+	 * @param userName The username from the client side
+	 * @param hash The password hash
+	 * @return result of validation
+	 */
+	@SuppressWarnings("unchecked")
+	public boolean validateUser(String userName, String hash) {
+		/*
+		 * Temporary solution that should go away. *UGLY UGLY HATE HATE*
+		 */
+		final String SECRET_HASH = "secret_hash";
+		List<Object> result = null;
+		String sql = "SELECT uuid, username, secret_hash, role, name FROM users WHERE username = ? and is_disabled = 0";
+
+		try {
+			PreparedStatement stmt = readConnection.prepareStatement(sql);
+			stmt.setString(1, userName);
+
+			result = (List<Object>) connectionManager.executeQuery(stmt);
+			logger.info(result.toString());
+
+			// Check if passwords match
+			if (((Map<String, Object>)result.get(0)).get(SECRET_HASH).equals(hash)) {
+				return true;
+			}
+		} catch (SQLException e) {
+			logger.throwing(getClass().getName(), "getUserList()", e);
+		}
+		/*
+		 * TODO: To be implemented
+		 * Check the Username and sha2(hash+salt) against the database.
+		 * If successful match, return true, else report invalid attempt.
+		 * 
+		 *  Refer to (http://crackstation.net/hashing-security.html#phpsourcecode) for algorithm
+		 */
+		return false;
+	}
+}

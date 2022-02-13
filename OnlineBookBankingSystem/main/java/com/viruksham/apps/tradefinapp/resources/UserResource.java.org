@@ -1,0 +1,127 @@
+/**
+ * 
+ */
+package com.viruksham.apps.tradefinapp.resources;
+
+import java.io.FileNotFoundException;
+import java.sql.SQLException;
+import java.util.List;
+
+import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
+import javax.ws.rs.PUT;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+
+import com.viruksham.apps.tradefinapp.data.JsonDataObject;
+import com.viruksham.apps.tradefinapp.data.ServiceResponse;
+import com.viruksham.apps.tradefinapp.model.UserModel;
+
+/**
+ * @author bala
+ *
+ */
+@Path("/v1/user")
+public class UserResource extends BaseResource {
+
+	private UserModel userModel = null;
+
+	@GET
+	@Produces (MediaType.TEXT_PLAIN)
+	public String greetUser() {
+		return "Thanks for using TradeFinApps11";
+	}
+
+	@SuppressWarnings("unchecked")
+	@GET @Path("/{userid}")
+	@Produces (MediaType.APPLICATION_JSON)
+	public Response getUserData(@PathParam("userid") String userid) {
+		
+		try {
+			Object value = getUserModel().getUser(userid);
+			if (value == null)
+				return Response.serverError().build();
+			else {
+				if (((List<Object>)value).size() == 0) {
+					return Response.noContent().build();
+				}
+				ServiceResponse response = new ServiceResponse();
+				response.setData(value);
+				return Response.ok(response.toJsonString()).build();
+			}
+		}
+		catch (Exception e) {
+			return Response.serverError().build();
+		}
+	}
+
+	@GET @Path("/list")
+	@Produces (MediaType.APPLICATION_JSON)
+	public Response getUserList() {
+		
+		response = new ServiceResponse();
+		try {
+			response.setData(getUserModel().getUserList());
+			builder.entity(response.toJsonString()).status(Status.OK);
+		} catch (Exception e) {
+			builder.entity(e.getMessage()).status(Status.INTERNAL_SERVER_ERROR);
+		}
+		return builder.build();
+	}
+
+	/**
+	 * User authentication
+	 *
+	 * @return
+	 */
+	@GET @Path("/{username}/authenticate")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response authenticateUser(
+			@PathParam("username") String username,
+			@QueryParam("secret") String secret) {
+				
+
+		response = new ServiceResponse();
+		try {
+			response.setData(getUserModel().isValidUser(username, secret));
+			builder.entity(response.toJsonString()).status(Status.OK);
+		} catch (Exception e) {
+			logger.throwing(getClass().getName(), "authenticateUser()", e);
+			builder.header("X-Error-Message", e.getMessage());
+		}
+		return builder.build();
+		
+	}
+
+	@PUT @Path("/create")
+
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces (MediaType.APPLICATION_JSON)
+	public Response putUserDetails(String userJson) {
+		
+		response = new ServiceResponse();
+		
+		try {
+			JsonDataObject data = JsonDataObject.valueOf(userJson);
+			response.setData(getUserModel().createUser(data.getValue()));
+			builder.entity(response.toJsonString()).status(Status.OK);
+			} catch (Exception e) {
+			builder.header("X-Error-Message", e.getMessage());
+		}
+		return builder.build();
+	}
+
+	private UserModel getUserModel() throws ClassNotFoundException, SQLException, FileNotFoundException {
+		if (userModel == null) {
+			userModel = new UserModel();
+		}
+		return userModel;
+	}
+}
